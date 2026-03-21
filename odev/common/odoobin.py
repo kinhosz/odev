@@ -668,7 +668,7 @@ class OdoobinProcess(OdevFrameworkMixin):
 
         if not self.venv.exists:
             self.venv.create()
-            self.venv.install_packages(["wheel", "setuptools", "pip", "cython<3.0.0"])
+            self.venv.install_packages(["wheel", "setuptools>=69.0.0", "pip", "cython<3.0.0"])
             self.venv.install_packages(["pyyaml==5.4.1"], ["--no-build-isolation"])
 
         for path in self.addons_requirements:
@@ -678,6 +678,8 @@ class OdoobinProcess(OdevFrameworkMixin):
             )
 
             if missing_gevent:
+                # --no-build-isolation uses the venv's setuptools; ensure it is new enough for pip's PEP517 backend.
+                self.venv.install_packages(["setuptools>=69.0.0", "wheel"], [])
                 self.venv.install_packages([missing_gevent.split(" ;")[0]], ["--no-build-isolation"])
 
             if any(self.venv.missing_requirements(path)):

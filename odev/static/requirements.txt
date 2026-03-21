@@ -2,7 +2,8 @@ ipdb
 phonenumbers
 pudb
 pydevd-odoo
+# setuptools 58–59 breaks `pip install --no-build-isolation` for gevent (and other sdists) with current pip
+# because the backend cannot load setuptools.build_meta reliably; use a modern floor on supported Pythons.
+setuptools>=69.0.0; python_version >= '3.8'
 setuptools<58.0.0; python_version < '3.8'
-setuptools>=58.0.0, <59.0.0; python_version >= '3.8' and python_version < '3.12'
-setuptools>59.0.0; python_version >= '3.12'
 websocket-client
