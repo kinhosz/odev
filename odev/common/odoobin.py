@@ -210,7 +210,7 @@ class OdoobinProcess(OdevFrameworkMixin):
     def odoo_path(self) -> Path:
         """Path to the Odoo installation."""
         for worktree in self.odoo_worktrees:
-            if worktree.name == self.worktree and worktree.connector.name == ODOO_COMMUNITY_REPOSITORIES[0]:
+            if worktree.connector.name == ODOO_COMMUNITY_REPOSITORIES[0]:
                 return worktree.path
 
         self.update_worktrees()
@@ -305,10 +305,15 @@ class OdoobinProcess(OdevFrameworkMixin):
 
     @property
     def odoo_worktrees(self) -> Generator[GitWorktree, None, None]:
-        """Return the list of Odoo worktrees for the current version."""
+        """Return the list of Odoo worktrees for the current version.
+        A repository whose primary checkout (not a dedicated worktree under odev's home directory) is already
+        sitting on the requested branch is treated as satisfying that version, instead of always requiring a
+        separate worktree under ``~/.odev/worktrees``. This allows repositories managed outside of odev (e.g.
+        symlinked to a local checkout kept on the desired branch) to be reused as-is.
+        """
         for repository in self.odoo_repositories:
             for worktree in repository.worktrees():
-                if worktree.name == self.worktree:
+                if worktree.name == self.worktree or (not worktree.detached and worktree.branch == self.worktree):
                     yield worktree
 
     @property
@@ -753,11 +758,12 @@ class OdoobinProcess(OdevFrameworkMixin):
     def update_worktrees(self):
         """Update the worktrees of the Odoo repositories."""
         self.clone_repositories()
+        matched_repositories = {worktree.connector.name for worktree in self.odoo_worktrees}
 
         for repository in self.odoo_repositories:
             repository.prune_worktrees()
 
-            if len(list(self.odoo_repositories)) != len(list(self.odoo_worktrees)):
+            if repository.name not in matched_repositories:
                 repository.create_worktree(f"{self.worktree}/{repository.path.name}", str(self.version or "master"))
 
         # Pull changes once per week, on Monday (or a later day if odev was not run)
@@ -800,10 +806,14 @@ class OdoobinProcess(OdevFrameworkMixin):
         return None
 
     def clone_repositories(self):
-        """Clone the missing Odoo repositories."""
+        """Clone the missing Odoo repositories.
+        Repositories that already exist locally are left on whatever branch they are currently checked out to:
+        forcing a checkout to "master" here would fight with repositories managed outside of odev (e.g. symlinked
+        to a local checkout actively being worked on). Worktree creation does not require the primary checkout to
+        be on any particular branch.
+        """
         for repo in self.odoo_repositories:
             repo.clone()
-            repo.checkout(revision="master", quiet=True)
 
     @classmethod
     def check_addons_path(cls, path: Path) -> bool:
